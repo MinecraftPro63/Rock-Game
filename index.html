@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login Page</title>
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #f0f0f0;
+    }
+    .login-container {
+      text-align: center;
+    }
+    .login-input {
+      padding: 10px;
+      font-size: 16px;
+    }
+    .login-button {
+      padding: 10px 20px;
+      font-size: 16px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    h1 {
+      font-family:sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <h1>Welcome to the Rock Clicker Game</h1>
+    <input type="text" class="login-input" id="username" placeholder="Enter your name">
+    <button class="login-button" onclick="login()">Login</button>
+  </div>
+  <script>
+    function login() {
+      const username = document.getElementById('username').value;
+      if (username.trim() === '') {
+        alert('Please enter your name.');
+        return;
+      }
+
+      // For simplicity, we will just store the username in the browser's local storage.
+      // In a real application, you would send this information to the backend for proper authentication.
+      localStorage.setItem('username', username);
+      alert('Login successful. Welcome, ' + username + '!');
+      window.location.href = 'game.html'; // Redirect to the main game page
+    }
+  </script>
+</body>
+</html>

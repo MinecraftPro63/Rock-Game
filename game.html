@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rock Clicker Game</title>
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background-color: #f0f0f0;
+    }
+    #rock {
+      width: 100px;
+      height: 100px;
+      background-color: gray;
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: pointer;
+      transition: transform 0.2s; /* Add smooth transition */
+    }
+    #rock:hover, #rock:active {
+      transform: scale(1.1); /* Make the rock bigger on hover and while pressed */
+    }
+    #health {
+      font-size: 24px;
+    }
+    #coins-container {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      font-size: 35px;
+      font-weight: bold;
+      font-family: sans-serif;
+    }
+    #coins-text {
+      padding-right: 5px; /* Add some spacing between the image and text */
+      animation: moveUp 1s forwards; /* Apply animation only to the text container */
+    }
+    #coin-image {
+      width: 75px; /* Increase the width and height for a bigger coin image */
+      height: 75px;
+    }
+    @keyframes explode {
+      0% {
+        transform: scale(1);
+        opacity: 1;
+      }
+      100% {
+        transform: scale(2);
+        opacity: 0;
+      }
+    }
+    #shop-container {
+      position: absolute;
+      top: 50px;
+      left: -250px; /* Start the shop offscreen */
+      width: 250px;
+      background-color: white;
+      padding: 20px;
+      border: 1px solid #ccc;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      font-size: 18px;
+      transition: left 0.3s ease-in-out; /* Add smooth animation when opening and closing */
+    }
+    #pull-tab {
+      position: absolute;
+      top: 50%;
+      right: -25px;
+      transform: translateY(-50%);
+      width: 50px;
+      height: 100px;
+      background-color: #007bff;
+      cursor: pointer;
+      border-top-left-radius: 10px;
+      border-bottom-left-radius: 10px;
+    }
+    .shop-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .shop-item button {
+      padding: 5px 10px;
+      cursor: pointer;
+      border: none;
+      background-color: #007bff;
+      color: white;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div id="rock" onmousedown="onPress()" onmouseup="onRelease()">
+    <span id="health">100</span>
+  </div>
+  <div id="coins-container">
+    <img id="coin-image" src="Coin.png" alt="Coin Image">
+    <span id="coin-count">0</span>
+  </div>
+  <div id="pull-tab" onclick="toggleShop()"></div>
+  <div id="shop-container">
+    <div class="shop-item">
+      Power Increase: <span id="power-price">10 coins</span> <button onclick="buyPower()">Buy</button>
+    </div>
+    <div class="shop-item">
+      Coin Multiplier Increase: <span id="multiplier-price">50 coins</span> <button onclick="buyMultiplier()">Buy</button>
+    </div>
+    <div class="shop-item">
+      Rebirth: <span id="rebirth-price">500 coins</span> <button onclick="rebirth()">Rebirth</button>
+    </div>
+  </div>
+  <div id="username-display" style="position: absolute; bottom: 10px; left: 10px; font-size: 20px;"></div>
+
+  <script>
+    let currentLevel = 1;
+    let rockHealth = 100;
+    let originalHealth = 100;
+    let coins = 0;
+    let power = 1;
+    let coinMultiplier = 1;
+    let rebirthMultiplier = 1;
+    let isShopOpen = false;
+    let playerUsername; // Store the player's username
+
+    function connectToServer() {
+      const serverUrl = 'wss://your-replit-url.repl.co'; // Replace with your WebSocket server URL
+      socket = new WebSocket(serverUrl);
+
+      socket.onopen = () => {
+        console.log('Connected to server');
+        // Upon connection, send the selected room to the server
+        const selectedRoom = localStorage.getItem('selectedRoom');
+        socket.send(JSON.stringify({ type: 'joinRoom', data: { room: selectedRoom } }));
+      };
+
+      socket.onmessage = (event) => {
+        // Handle incoming messages from the server
+        const message = JSON.parse(event.data);
+        switch (message.type) {
+          case 'initialState':
+            handleInitialState(message.data);
+            break;
+          case 'gameStateUpdate':
+            handleGameStateUpdate(message.data);
+            break;
+          default:
+            break;
+        }
+      };
+
+      socket.onclose = () => {
+        console.log('Disconnected from server');
+        // You can add a reconnect logic here if needed
+      };
+    }
+
+    function handleInitialState(data) {
+      // Handle the initial state received from the server
+      rockHealth = data.rockHealth;
+      coins = data.coins;
+      power = data.power;
+      coinMultiplier = data.coinMultiplier;
+      rebirthMultiplier = data.rebirthMultiplier;
+      updateGameUI(); // Update the game UI to reflect the initial state
+    }
+
+    function handleGameStateUpdate(data) {
+      // Handle the game state update received from the server
+      rockHealth = data.rockHealth;
+      coins = data.coins;
+      updateGameUI(); // Update the game UI to reflect the changes
+    }
+
+    function updateGameUI() {
+      document.getElementById('health').textContent = rockHealth;
+      document.getElementById('coin-count').textContent = coins;
+      updateShopItemPrices(); // Update shop item prices
+    }
+
+    function onPress() {
+      document.getElementById('rock').style.transform = 'scale(0.9)';
+    }
+
+    function onRelease() {
+      document.getElementById('rock').style.transform = 'scale(1)';
+      reduceHealth();
+      updateServerState(); // Update the server with the player's actions
+    }
+
+    function reduceHealth() {
+      rockHealth -= 10 * power * coinMultiplier;
+      if (rockHealth <= 0) {
+        rockHealth = originalHealth * (2 ** currentLevel);
+        coins += 5 * (2 ** currentLevel); // Earn 10 coins, and then double for each level
+        currentLevel++;
+        document.getElementById('rock').style.animation = 'explode 1s forwards';
+        document.getElementById('rock').style.pointerEvents = 'none';
+        document.getElementById('health').style.visibility = 'hidden';
+        document.getElementById('coin-count').textContent = coins;
+        setTimeout(() => {
+          document.getElementById('rock').style.removeProperty('animation');
+          document.getElementById('rock').style.pointerEvents = 'auto';
+          document.getElementById('health').style.visibility = 'visible';
+          document.getElementById('health').textContent = rockHealth;
+          document.getElementById('coins-container').style.animation = 'none'; // Reset animation
+          setTimeout(() => {
+            document.getElementById('coins-container').style.animation = 'moveUp 1s forwards'; // Reapply animation on the next explosion
+          }, 100);
+        }, 1000);
+      }
+      document.getElementById('coin-count').textContent = coins;
+      document.getElementById('health').textContent = rockHealth;
+    }
+
+    function buyPower() {
+      const powerPrice = 5 * (2 ** power);
+      if (coins >= powerPrice) {
+        coins -= powerPrice;
+        power++;
+        document.getElementById('coin-count').textContent = coins;
+        updateShopItemPrices(); // Update shop item prices after purchase
+      }
+    }
+
+    function buyMultiplier() {
+      const multiplierPrice = 25 * (2 ** coinMultiplier);
+      if (coins >= multiplierPrice) {
+        coins -= multiplierPrice;
+        coinMultiplier++;
+        document.getElementById('coin-count').textContent = coins;
+        updateShopItemPrices(); // Update shop item prices after purchase
+      }
+    }
+
+    function rebirth() {
+      const rebirthPrice = 500 * (2 ** rebirthMultiplier);
+      if (coins >= rebirthPrice) {
+        coins -= rebirthPrice;
+        rebirthMultiplier++;
+        document.getElementById('coin-count').textContent = coins;
+        updateShopItemPrices(); // Update shop item prices after rebirth
+      }
+    }
+
+    // Helper function to update shop item prices
+    function updateShopItemPrices() {
+      const powerPriceElement = document.getElementById('power-price');
+      const multiplierPriceElement = document.getElementById('multiplier-price');
+      const rebirthPriceElement = document.getElementById('rebirth-price');
+
+      // Calculate new prices based on the number of purchases
+      const powerPrice = 5 * (2 ** power);
+      const multiplierPrice = 25 * (2 ** coinMultiplier);
+      const rebirthPrice = 500 * (2 ** rebirthMultiplier);
+
+      // Update price display
+      powerPriceElement.textContent = powerPrice + ' coins';
+      multiplierPriceElement.textContent = multiplierPrice + ' coins';
+      rebirthPriceElement.textContent = rebirthPrice + ' coins';
+    }
+
+    function toggleShop() {
+      isShopOpen = !isShopOpen;
+      const shopContainer = document.getElementById('shop-container');
+      if (isShopOpen) {
+        shopContainer.style.left = '0';
+      } else {
+        shopContainer.style.left = '-250px';
+      }
+    }
+
+    // Display the username in the bottom left corner if available in local storage
+    playerUsername = localStorage.getItem('username');
+    if (playerUsername) {
+      document.getElementById('username-display').textContent = 'Player: ' + playerUsername;
+    } else {
+      // Redirect to the login page if the username is not available
+      window.location.href = 'login.html';
+    }
+
+    // Connect to the WebSocket server upon page load
+    connectToServer();
+  </script>
+</body>
+</html>
